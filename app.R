@@ -246,11 +246,6 @@ body { background-color: var(--cream) !important; font-family: 'Inter', sans-ser
 
 ui <- page_navbar(
   title = tags$span(
-    tags$img(
-      src    = "https://upload.wikimedia.org/wikipedia/commons/thumb/5/55/Emblem_of_India.svg/800px-Emblem_of_India.svg.png",
-      height = "28px", class = "me-2",
-      style  = "vertical-align:middle;"
-    ),
     "PMGSY Analytics"
   ),
   
