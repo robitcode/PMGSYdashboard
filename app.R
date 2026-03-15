@@ -9,7 +9,7 @@ library(rintrojs)
 library(shinycssloaders)
 
 data <- read.csv("PMGSY.csv")
-india_shapefile <- st_read("INDIA.shp", quiet = TRUE)
+india_shapefile <- st_read("INDIA.shp")
 source("styles.R")
 
 colnames(india_shapefile)[1] <- "STATE_NAME"
@@ -88,12 +88,6 @@ ui <- page_navbar(
       data.intro = "Start here! Pick a scheme or state — the entire dashboard updates automatically."
     )
   ),
-  
-  
-  
-  
-  
-  
   nav_panel("Home", value = "home_tab", icon = icon("gauge-high"),
             
             card(
@@ -557,6 +551,8 @@ server <- function(input, output, session) {
   })
   
   output$india_map <- renderTmap({
+    
+    # 1. Base calculations
     map_df <- base_data() %>%
       group_by(STATE_NAME) %>%
       summarise(across(where(is.numeric), \(x) sum(x, na.rm = TRUE)), .groups = "drop") %>%
@@ -566,29 +562,51 @@ server <- function(input, output, session) {
         bridges_completed_percentage = if_else(NO_OF_BRIDGES_SANCTIONED > 0,
                                                (NO_OF_BRIDGES_COMPLETED / NO_OF_BRIDGES_SANCTIONED) * 100, 0),
         bridges_balance_percentage   = if_else(NO_OF_BRIDGES_SANCTIONED > 0,
-                                               (NO_OF_BRIDGES_BALANCE   / NO_OF_BRIDGES_SANCTIONED) * 100, 0),
+                                               (NO_OF_BRIDGES_BALANCE    / NO_OF_BRIDGES_SANCTIONED) * 100, 0),
         road_work_balance_percentage = if_else(LENGTH_OF_ROAD_WORK_SANCTIONED_KM > 0,
                                                (LENGTH_OF_ROAD_WORK_BALANCE_KM / LENGTH_OF_ROAD_WORK_SANCTIONED_KM) * 100, 0)
       )
     
-    if (input$state != "All States") map_df <- map_df %>% filter(STATE_NAME == input$state)
-    
-    merged_data <- india_shapefile %>% left_join(map_df, by = "STATE_NAME")
     metric_name <- names(map_choices)[map_choices == input$map_var]
     
-
-    # ... (rest of your india_map renderTmap code remains the same) ...
-  
-    tm_shape(merged_data) +
-      tm_borders(col = "#ffffff", lwd = 1.2) +
-      tm_fill(
-        fill       = input$map_var, # 'col' is updated to 'fill' in v4
-        fill.scale = tm_scale_intervals(style = "quantile", values = "brewer.yl_or_rd"),
-        fill.legend= tm_legend(title = metric_name),
-        id         = "STATE_NAME",
-        popup.vars = setNames(c("STATE_NAME", input$map_var), c("State", metric_name))
-      )
+    # 2. Split logic entirely based on the filter
+    if (input$state == "All States") {
+      
+      # Join all states
+      merged_data <- india_shapefile %>% left_join(map_df, by = "STATE_NAME")
+      
+      # Map all states with a color gradient
+      tm_shape(merged_data) +
+        tm_borders(col = "#ffffff", lwd = 1.2) +
+        tm_fill(
+          fill       = input$map_var, # Passing the variable
+          fill.scale = tm_scale_intervals(style = "quantile", values = "brewer.yl_or_rd"),
+          fill.legend= tm_legend(title = metric_name),
+          id         = "STATE_NAME",
+          popup.vars = setNames(c("STATE_NAME", input$map_var), c("State", metric_name))
+        )
+      
+    } else {
+      
+      # Filter BOTH the data and the shapefile to just the single state
+      single_state_df <- map_df %>% filter(STATE_NAME == input$state)
+      merged_data     <- india_shapefile %>% 
+        filter(STATE_NAME == input$state) %>% 
+        left_join(single_state_df, by = "STATE_NAME")
+      
+      # Map just the single state with a solid color (Map will auto-zoom!)
+      tm_shape(merged_data) +
+        tm_borders(col = "#1B3A5C", lwd = 2) +
+        tm_fill(
+          fill       = "#E8890C", # Passing a literal color bypasses the buggy scale engine!
+          id         = "STATE_NAME",
+          popup.vars = setNames(c("STATE_NAME", input$map_var), c("State", metric_name))
+        )
+    }
   })
+  
+  
+  outputOptions(output, "india_map", suspendWhenHidden = FALSE) 
 }
 
 shinyApp(ui, server)
